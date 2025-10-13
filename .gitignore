@@ -1,0 +1,27 @@
+# Bağımlılıklar
+/node_modules
+/frontend/node_modules
+/contracts/node_modules
+
+# Log dosyaları
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build çıktıları
+/frontend/dist
+/frontend/build
+/contracts/artifacts
+/contracts/cache
+/contracts/typechain-types
+
+# Environment dosyaları (Hassas veriler içerir!)
+.env
+*.env
+/contracts/.env
+
+# İşletim sistemi ve IDE'ye özel dosyalar
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
