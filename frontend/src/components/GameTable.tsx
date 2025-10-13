@@ -249,36 +249,40 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
     }
   }, [phase, gameOver, players, walletClient, connectedAddress, addMessage, pushToast, round, votingAddress, votingAbi, publicClient, meAddress, checkAllVotes, fetchOnChainVotes, transaction]);
 
+  const combineVotes = (localVotes: Record<string, number>, chainVotes: Record<number, number>): Record<number, number> => {
+    const combined: Record<number, number> = { ...chainVotes };
+    for (const [playerIdStr, count] of Object.entries(localVotes)) {
+      const playerId = Number(playerIdStr);
+      combined[playerId] = (combined[playerId] || 0) + count;
+    }
+    return combined;
+  };
+
+  const determineEliminatedPlayer = (currentPlayers: Player[], combinedVotes: Record<number, number>): Player | undefined => {
+    const alive = currentPlayers.filter(p => !p.eliminated);
+    if (alive.length === 0) return undefined;
+
+    const alivePlayerIds = new Set(alive.map(p => p.playerId));
+    const [topPlayerIdStr] = Object.entries(combinedVotes)
+      .filter(([playerId]) => alivePlayerIds.has(Number(playerId)))
+      .reduce(([maxPlayer, maxVotes], [currentPlayer, currentVotes]) =>
+        currentVotes > maxVotes ? [currentPlayer, currentVotes] : [maxPlayer, maxVotes], [null, -1]);
+
+    let topPlayerId = topPlayerIdStr ? Number(topPlayerIdStr) : null;
+
+    if (topPlayerId === null) {
+      const candidates = alive.map(a => a.playerId);
+      topPlayerId = candidates[Math.floor(Math.random() * candidates.length)]!;
+    }
+    return currentPlayers.find(p => p.playerId === topPlayerId);
+  };
+
   const evaluateDay = (currentPlayers = players) => {
     // stop timer
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
 
-    // Combine local bot votes and on-chain votes
-    const combinedVotes: Record<number, number> = { ...onChainVotes };
-    for (const [playerIdStr, count] of Object.entries(votes)) {
-        const playerId = Number(playerIdStr);
-        combinedVotes[playerId] = (combinedVotes[playerId] || 0) + count;
-    }
-
-    const alive = currentPlayers.filter(p => !p.eliminated)
-    if (alive.length === 0) return
-    // find the target with highest votes, using playerId as key
-    let topPlayerId: number | null = null
-    let topCount = -1
-    for (const [playerIdStr, count] of Object.entries(combinedVotes)) {
-      const playerId = Number(playerIdStr)
-      if (count > topCount && alive.some(a => a.playerId === playerId)) {
-        topCount = count
-        topPlayerId = playerId
-      }
-    }
-    // fallback: if no votes recorded, pick random alive player
-    if (topPlayerId === null) {
-      const candidates = alive.map(a => a.playerId)
-      topPlayerId = candidates[Math.floor(Math.random() * candidates.length)]
-    }
-
-    const accused = currentPlayers.find(p => p.playerId === topPlayerId!)
+    const combined = combineVotes(votes, onChainVotes);
+    const accused = determineEliminatedPlayer(currentPlayers, combined);
     if (!accused) return
 
     setPlayers(prev => {
@@ -310,6 +314,26 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
     });
   }
 
+  const handleElimination = (targetId: string, eliminatorName: string) => {
+    setPlayers(prev => {
+      const target = prev.find(p => p.id === targetId);
+      if (!target) return prev;
+
+      const nextPlayers = prev.map(p => (p.id === targetId ? { ...p, eliminated: true } : p));
+      addMessage(`Night: ${eliminatorName} eliminated ${target.name}.`);
+
+      const aliveAfter = nextPlayers.filter(p => !p.eliminated);
+      const whiteAlive = aliveAfter.filter(a => a.cardId !== 1);
+      if (whiteAlive.length <= 1) {
+        setGameOver(true);
+        setWinner('blacks');
+        addMessage('Blacks have prevailed.');
+      }
+      return nextPlayers;
+    });
+    pushToast(`${(players.find(p => p.id === targetId))?.name} was eliminated.`);
+  };
+
   const runNight = () => {
     if (gameOver) return
     const alive = players.filter(p => !p.eliminated)
@@ -324,20 +348,8 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
     const choices = alive.filter(p => p.id !== black.id)
     if (choices.length === 0) return
     if (black.isBot) {
-      setPlayers(prev => {
-        const target = choices[Math.floor(Math.random() * choices.length)]
-        const nextPlayers = prev.map(p => (p.id === target.id ? { ...p, eliminated: true } : p));
-        addMessage(`Night: Black card (${black.name}) eliminated ${target.name}.`)
-        // check victory after bot elimination
-        const aliveAfter = nextPlayers.filter(p => !p.eliminated);
-        const whiteAlive = aliveAfter.filter(a => a.cardId !== 1)
-        if (whiteAlive.length <= 1) {
-          setGameOver(true)
-          setWinner('blacks')
-          addMessage('Blacks have prevailed.')
-        }
-        return nextPlayers;
-      })
+      const target = choices[Math.floor(Math.random() * choices.length)];
+      handleElimination(target.id, `Black card (${black.name})`);
     } else {
       // if human black card, enable gossip mode so they can choose
       setGossipMode(true)
@@ -591,24 +603,10 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {players.filter(p => !p.eliminated && p.id !== meAddress).map(p => (
                 <button key={p.id} onClick={() => {
-                  setPlayers(prev => {
-                    const nextPlayers = prev.map(x => x.id === p.id ? { ...x, eliminated: true } : x);
-                    pushToast(`${p.name} was eliminated by gossip.`)
-                    setGossipMode(false)
-
-                    // Check for black's win condition
-                    const aliveAfter = nextPlayers.filter(p => !p.eliminated);
-                    const whiteAlive = aliveAfter.filter(a => a.cardId !== 1);
-                    if (whiteAlive.length <= 1) {
-                      setGameOver(true);
-                      setWinner('blacks');
-                      addMessage('Blacks have prevailed.');
-                    } else {
-                      setRound(r => r + 1);
-                      setPhase('day');
-                    }
-                    return nextPlayers;
-                  })
+                  handleElimination(p.id, 'You (as Gossip)');
+                  setGossipMode(false);
+                  setRound(r => r + 1);
+                  setPhase('day');
                 }} style={{ textAlign: 'left', padding: '8px 10px' }}>{p.name}</button>
               ))}
             </div>

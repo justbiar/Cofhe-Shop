@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ethereum Game Development Scaffold
 
 Bu proje, Ethereum blockchain üzerinde oyun geliştirmek için hazırlanmış kapsamlı bir scaffold'dir. Modern Web3 teknolojileri ve 3D oyun geliştirme araçları kullanılarak oluşturulmuştur.
@@ -238,3 +239,6 @@ Sorularınız için:
 **Not**: Bu scaffold geliştirme amaçlıdır. Ana ağa deploy etmeden önce güvenlik denetimi yapın.
 
 
+=======
+# Cofhe-Shop
+>>>>>>> 14e2e32fddc15d92fbd25b2db48525689d31e6c6
