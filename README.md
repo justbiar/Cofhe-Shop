@@ -1,14 +1,10 @@
 <<<<<<< HEAD
-# Ethereum Game Development Scaffold
+# CofHE Shop
 
-Bu proje, Ethereum blockchain üzerinde oyun geliştirmek için hazırlanmış kapsamlı bir scaffold'dir. Modern Web3 teknolojileri ve 3D oyun geliştirme araçları kullanılarak oluşturulmuştur.
+
 
 ## 🎮 Özellikler
 
-### Smart Contracts
-- **GameToken (ERC20)**: Oyun içi para birimi
-- **GameNFT (ERC721)**: Oyun karakterleri ve eşyaları
-- **GameMarketplace**: NFT alım-satım platformu
 
 ### Frontend
 - **React + TypeScript**: Modern web geliştirme
