@@ -5,7 +5,7 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { config, chains } from './config/wagmi'
-import App from './App.tsx'
+import App from './App'
 import '@rainbow-me/rainbowkit/styles.css'
 import './index.css'
 

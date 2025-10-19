@@ -1,0 +1,13 @@
+import { jsx as _jsx } from "react/jsx-runtime";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { WagmiConfig } from 'wagmi';
+import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
+import { config, chains } from './config/wagmi';
+import App from './App';
+import '@rainbow-me/rainbowkit/styles.css';
+import './index.css';
+const queryClient = new QueryClient();
+ReactDOM.createRoot(document.getElementById('root')).render(_jsx(React.StrictMode, { children: _jsx(WagmiConfig, { config: config, children: _jsx(QueryClientProvider, { client: queryClient, children: _jsx(RainbowKitProvider, { chains: chains, children: _jsx(BrowserRouter, { children: _jsx(App, {}) }) }) }) }) }));

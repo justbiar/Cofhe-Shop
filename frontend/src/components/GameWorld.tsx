@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Box, Sphere, Torus, Text } from '@react-three/drei'
 import * as THREE from 'three'
-import { motion } from 'framer-motion-3d'
+import { motion } from 'framer-motion'
 
 function FloatingCube({ position }: { position: [number, number, number] }) {
   const meshRef = useRef<THREE.Mesh>(null)
