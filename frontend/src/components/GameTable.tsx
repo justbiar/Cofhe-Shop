@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Card from './Card'
 import { useAccount, useNetwork, usePublicClient, useWalletClient } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 type Player = {
   id: string
@@ -31,6 +32,7 @@ function shuffle<T>(arr: T[]) {
 
 import useGameNFT from '../hooks/useGameNFT'
 import useLocalNFTs from '../hooks/useLocalNFTs'
+import { VotingPanel, VoteRecord } from './VotingPanel'
 import addresses from '../contracts/addresses.json'
 import { useNavigate } from 'react-router-dom'
 
@@ -48,12 +50,14 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
   const [votes, setVotes] = useState<Record<string, number>>({})
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<'whites' | 'blacks' | null>(null)
-  const [gameMode, setGameMode] = useState<'normal' | 'fhe'>('normal')
+  const [gameMode, setGameMode] = useState<'normal' | 'fhe'>('normal') // 'fhe' modu henüz tam entegre değil
+  const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([])
   // deck card ids mapped to images: assume 1 = gossip (black), others are good
   const [isVoting, setIsVoting] = useState(false)
   const [showPublicDataWarning, setShowPublicDataWarning] = useState(true)
   const [transaction, setTransaction] = useState<{ hash: string; status: 'pending' | 'confirmed' | 'failed' } | null>(null)
   const { chain } = useNetwork()
+  const isVotingRef = useRef(false) // Oylama kilidi için ref
   const blockExplorerUrl = useMemo(() => {
     return chain?.blockExplorers?.default.url
   }, [chain])
@@ -80,7 +84,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
   const [onChainVotes, setOnChainVotes] = useState<Record<number, number>>({})
 
   const fetchOnChainVotes = async (roundToRead = round) => {
-    if (!votingAddress) return
+    if (!votingAddress) return {}
     const map: Record<number, number> = {}
     // Iterate through all possible playerIds (0 to 4 in this case)
     for (const id of [0, 1, 2, 3, 4]) { // Use playerIds instead of cardIds
@@ -92,6 +96,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
       }
     }
     setOnChainVotes(map)
+    return map
   }
 
   // small toast helper
@@ -131,6 +136,8 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
       setPlayers(prev => prev.map(p => ({ ...p, hasVoted: false })))
       setMessages(m => [...m, `Day ${round}: Discuss and vote to find the black card.`])
       pushToast(`Day ${round} started — discuss and vote!`)
+      setVoteRecords([]) // Reset votes here.
+      setVotes({}) // Also reset vote counts.
       // start 30s voting timer
       setVoteTimer(30)
       if (timerRef.current) {
@@ -141,8 +148,10 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
         setVoteTimer(t => {
           if (t <= 1) {
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-            pushToast('Voting time ended — tallying votes.')
-            evaluateDay() // Evaluate the day when timer ends
+            pushToast('Voting time ended — tallying votes.');
+            // setPlayers'ın callback formunu kullanarak en güncel state ile evaluateDay'i çağır.
+            // Bu, "stale state" sorununu çözer.
+            setPlayers(currentPlayers => { evaluateDay(currentPlayers); return currentPlayers; });
           }
           return t - 1
         })
@@ -164,12 +173,26 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
   const addMessage = (txt: string) => setMessages(m => [...m, txt])
 
   const botVote = (botId: string) => {
+    // Oyuncunun zaten oy kullanıp kullanmadığını kontrol et
+    const hasVoted = players.find(p => p.id === botId)?.hasVoted;
+    if (hasVoted) {
+      return; // Zaten oy kullandıysa tekrar oy kullanmasını engelle
+    }
+
     setPlayers(prev => {
       const alive = prev.filter(x => !x.eliminated)
       // bot picks a random alive target that's not itself
       const choices = alive.filter(x => x.id !== botId)
       if (choices.length === 0) return prev
       const target = choices[Math.floor(Math.random() * choices.length)]
+      const voter = prev.find(p => p.id === botId)
+      if (!voter) return prev;
+
+      setVoteRecords(records => [
+        ...records,
+        { voterId: voter.id, voterName: voter.name, targetId: target.id, targetName: target.name }
+      ])
+
 
       addMessage(`${botId} voted for ${target.name}`)
       // mark bot as hasVoted and tally vote
@@ -197,16 +220,34 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
   }
 
   const userVote = useCallback(async (targetId: string) => {
-    if (phase !== 'day' || gameOver) return
+    // Kilit zaten fonksiyon çağrılmadan önce (onClick içinde) ayarlandı.
+    // Sadece temel kontrolleri yapalım.
+    if (phase !== 'day' || gameOver || voteTimer <= 0) return
+    
+    const me = players.find(p => p.id === meAddress);
+    if (me?.hasVoted) {
+      pushToast('Bu turda zaten oy kullandınız.');
+      return;
+    }
     const target = players.find(p => p.id === targetId)
     if (!target) return
-
+    
     // require wallet and wallet signing to count vote
-    if (!walletClient || !connectedAddress) {
-      pushToast('Connect your wallet to cast a vote (on-chain).')
-      return
+    if (!walletClient) { // Sadece walletClient kontrolü yeterli
+      return; // Buton mantığı zaten cüzdan bağlı değilse ConnectButton gösterecek
     }
 
+    const voter = players.find(p => p.id === meAddress);
+    if (!voter) {
+      isVotingRef.current = false;
+      setIsVoting(false);
+      return;
+    }
+    
+    setVoteRecords(records => [
+      ...records,
+      { voterId: meAddress, voterName: voter.name, targetId: target.id, targetName: target.name }
+    ]);
     addMessage(`Submitting vote for ${target.name}...`)
     pushToast('You voted — awaiting wallet confirmation')
 
@@ -228,14 +269,19 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
         addMessage('Vote recorded on-chain.')
         pushToast('Vote recorded on-chain')
         setTransaction({ hash: txHash, status: 'confirmed' })
+        console.log('[GameTable] vote tx confirmed', { txHash, round, target: targetPlayerId })
+        // best-effort: refresh on-chain votes after confirmation
+        try {
+          await fetchOnChainVotes()
+        } catch (e) {
+          console.error('Failed to refresh on-chain votes', e)
+        }
         // mark user voted and tally
         setPlayers(prev => {
           const nextPlayers = prev.map(p => (p.id === meAddress ? { ...p, hasVoted: true } : p));
           checkAllVotes(nextPlayers);
           return nextPlayers;
         })
-        setVotes(v => ({ ...v, [target.playerId!]: (v[target.playerId!] || 0) + 1 }))
-        fetchOnChainVotes()
       } else {
         addMessage('Transaction not confirmed yet.')
         pushToast('Transaction not confirmed. Vote not counted.')
@@ -243,17 +289,24 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
       }
     } catch (err: any) {
       // user likely rejected the signature or tx failed
+      console.error('[GameTable] vote error', err)
       addMessage('On-chain vote failed or rejected: ' + (err?.message ?? String(err)))
       if (transaction) setTransaction(t => t ? { ...t, status: 'failed' } : null)
       pushToast('Vote rejected or failed — please retry')
+    } finally {
+      isVotingRef.current = false;
+      setIsVoting(false); // Oylama işlemi bittiğinde (başarılı veya başarısız) kilidi kaldır
     }
   }, [phase, gameOver, players, walletClient, connectedAddress, addMessage, pushToast, round, votingAddress, votingAbi, publicClient, meAddress, checkAllVotes, fetchOnChainVotes, transaction]);
 
   const combineVotes = (localVotes: Record<string, number>, chainVotes: Record<number, number>): Record<number, number> => {
-    const combined: Record<number, number> = { ...chainVotes };
+    // Start with a fresh copy of on-chain votes
+    const combined: Record<number, number> = { ...chainVotes }; 
+    // Add only bot votes from local state
     for (const [playerIdStr, count] of Object.entries(localVotes)) {
       const playerId = Number(playerIdStr);
-      combined[playerId] = (combined[playerId] || 0) + count;
+      // We assume local `votes` state only contains bot votes now.
+      combined[playerId] = (combined[playerId] || 0) + count; 
     }
     return combined;
   };
@@ -277,11 +330,13 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
     return currentPlayers.find(p => p.playerId === topPlayerId);
   };
 
-  const evaluateDay = (currentPlayers = players) => {
+  const evaluateDay = async (currentPlayers = players) => {
     // stop timer
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
 
-    const combined = combineVotes(votes, onChainVotes);
+  const onChain = await fetchOnChainVotes(); // Ensure we have the latest on-chain votes and receive the map
+
+  const combined = combineVotes(votes, onChain || onChainVotes); // `votes` should only contain bot votes
     const accused = determineEliminatedPlayer(currentPlayers, combined);
     if (!accused) return
 
@@ -289,10 +344,10 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
         const nextPlayers = prev.map(p => (p.id === accused.id ? { ...p, eliminated: true } : p));
 
         if (accused.cardId === 1) {
-            // whites found the black card -> whites win
-            addMessage(`Players found the black card! ${accused.name} was the black card and has been removed.`)
+            // Gossip card found -> Blacks win
+            addMessage(`The Gossip has been revealed! ${accused.name} was the black card.`)
             setGameOver(true)
-            setWinner('whites')
+            setWinner('blacks')
             return nextPlayers; // Stop further execution
         } else {
             // eliminate accused
@@ -387,6 +442,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
     setGameOver(false)
     setWinner(null)
     setVotes({})
+    setVoteRecords([]) // Oylama tablosunu sıfırla
     setPlayers(makePlayers(meAddress))
     const shuffled = shuffle(deck)
     setPlayers(prev => prev.map((p, idx) => ({ ...p, cardId: shuffled[idx], eliminated: false, hasVoted: false })))
@@ -454,6 +510,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
                 setPhase('day')
                 setRound(1)
                 setShowPublicDataWarning(true)
+                setVoteRecords([]) // Oylama tablosunu sıfırla
                 pushToast(`Game started in ${gameMode.toUpperCase()} Mode!`)
               }}>Start Game</button>
             </div>
@@ -509,7 +566,24 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
               <Card faceUp={p.id === meAddress || !!p.eliminated} image={localImages[p.cardId ?? 0] || images[p.cardId ?? 0] || uris[p.cardId ?? 0] || `/nfts/${p.cardId}.png`} label={localNames[p.cardId ?? 0] || names[p.cardId ?? 0] || `Card ${p.cardId}`} />
               <div style={{ marginTop: 8 }}>
                 {phase === 'day' ? (
-                  <button disabled={p.eliminated || isVoting || players.find(pl => pl.id === meAddress)?.hasVoted} onClick={() => userVote(p.id)}>{isVoting ? 'Voting...' : 'Vote'}</button>
+                  !connectedAddress ? (
+                    <ConnectButton.Custom>
+                      {({ openConnectModal }) => (
+                        <button onClick={openConnectModal} type="button">
+                          Oy için Cüzdan Bağla
+                        </button>
+                      )}
+                    </ConnectButton.Custom>
+                  ) : (
+                    <button disabled={p.eliminated || isVoting || players.find(pl => pl.id === meAddress)?.hasVoted || voteTimer <= 0} onClick={() => {
+                      if (isVotingRef.current) return; // Çift tıklamayı engellemek için ek kontrol
+                      isVotingRef.current = true;
+                      setIsVoting(true);
+                      userVote(p.id);
+                    }}>
+                      {players.find(pl => pl.id === meAddress)?.hasVoted ? 'Oylandı' : isVoting ? 'Oylanıyor...' : 'Oy Ver'}
+                    </button>
+                  )
                 ) : (
                   p.cardId === 1 && p.id === meAddress && !p.eliminated ? (
                     <button onClick={() => setGossipMode(true)}>Gossip</button>
@@ -524,6 +598,13 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
             </div>
           ))}
         </div>
+
+        {/* Oylama Paneli - Oyun sırasında gösterilir */}
+        {phase === 'day' && started && !gameOver && (
+          <div style={{ position: 'absolute', bottom: '100px', left: '24px', zIndex: 70 }}>
+            <VotingPanel voteRecords={voteRecords} round={round} />
+          </div>
+        )}
 
         {/* Bottom row for the current player */}
         <div style={{
@@ -543,7 +624,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
               <Card faceUp={p.id === meAddress || !!p.eliminated} image={localImages[p.cardId ?? 0] || images[p.cardId ?? 0] || uris[p.cardId ?? 0] || `/nfts/${p.cardId}.png`} label={localNames[p.cardId ?? 0] || names[p.cardId ?? 0] || `Card ${p.cardId}`} />
               <div style={{ marginTop: 8 }}>
                 {phase === 'day' ? (
-                  <button disabled={p.eliminated || (p.id === meAddress && players.find(pl => pl.id === meAddress)?.hasVoted)} onClick={() => userVote(p.id)}>Vote</button>
+                  <button disabled>{p.eliminated ? 'Elendi' : 'Kendine Oy Veremezsin'}</button>
                 ) : (
                   p.cardId === 1 && p.id === meAddress && !p.eliminated ? (
                     <button onClick={() => setGossipMode(true)}>Gossip</button>
@@ -579,6 +660,12 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
             <div>Round: {round}</div>
             {phase === 'day' && started && (
               <div style={{ marginLeft: 8, padding: '4px 8px', background: 'rgba(255,255,255,0.9)', borderRadius: 6, color: '#111' }}>{voteTimer}s</div>
+            )}
+            {/* On-chain votes quick view */}
+            {Object.keys(onChainVotes).length > 0 && (
+              <div style={{ marginLeft: 12, fontSize: 13, color: '#d1d5db' }}>
+                On-chain: {Object.entries(onChainVotes).map(([pid, cnt]) => `${pid}:${cnt}`).join(' | ')}
+              </div>
             )}
           </div>
           {/* Existing buttons */}
@@ -628,7 +715,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
         <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', zIndex: 120 }}>
           <div style={{ background: '#fff', color: '#111', padding: 28, borderRadius: 12, width: 520, textAlign: 'center' }}>
             <h2 style={{ marginTop: 0 }}>{winner === 'whites' ? 'Whites Win!' : 'Blacks Win!'}</h2>
-            <p>Game over — {winner === 'whites' ? 'The white team found the Gossip.' : 'The Gossip eliminated enough players.'}</p>
+            <p>Game over — {winner === 'whites' ? 'The white team successfully eliminated the Gossip.' : 'The Gossip team has won!'}</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
               <button onClick={() => resetGameState(true)}>Replay</button>
               <button onClick={() => { resetGameState(false); navigate('/'); }}>Exit to Menu</button>
@@ -639,7 +726,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
       )}
 
       {/* Public Data Info Panel (Visible in Normal Mode) */}
-      {started && gameMode === 'normal' && (
+      {started && gameMode === 'normal' && showPublicDataWarning && (
         <div style={{
           position: 'fixed',
           right: 24,
@@ -672,6 +759,7 @@ export default function GameTable({ meAddress }: { meAddress: string }) {
             </li>
           </ul>
           <p style={{ fontSize: 12, marginTop: 14, opacity: 0.7, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>For a private game where your votes are encrypted, restart and choose <strong>FHE Mode</strong>.</p>
+          <button onClick={() => setShowPublicDataWarning(false)} style={{ marginTop: 12, width: '100%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px', borderRadius: 6, cursor: 'pointer' }}>Close</button>
         </div>
       )}
 

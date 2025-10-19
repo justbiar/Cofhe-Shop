@@ -28,6 +28,23 @@ const CardBox = styled(motion.div)`
   background: rgba(255,255,255,0.06);
   color: white;
   min-height: 120px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+`
+
+const Img = styled.img`
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+`
+
+const Meta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 `
 
 export default function CardIntro() {
@@ -49,8 +66,11 @@ export default function CardIntro() {
       <Grid>
         {cards.map(c => (
           <CardBox key={c.id} whileHover={{ scale: 1.02 }}>
-            <strong>{c.title}</strong>
-            <div style={{ marginTop: 8 }}>{c.story}</div>
+            <Img src={`/nfts/${c.id}.png`} alt={c.title} onError={(e:any)=>{ e.currentTarget.src = '/nfts/metadata-1.json' }} />
+            <Meta>
+              <strong>{c.title}</strong>
+              <div style={{ marginTop: 4, fontSize: 14 }}>{c.story}</div>
+            </Meta>
           </CardBox>
         ))}
       </Grid>

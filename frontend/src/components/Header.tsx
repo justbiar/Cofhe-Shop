@@ -78,11 +78,9 @@ export default function Header() {
           <NavLink to="/marketplace" $active={location.pathname === '/marketplace'}>
             How to play?
           </NavLink>
-          <ConnectButton />
+          <ConnectButton accountStatus="address" />
         </NavLinks>
       </Nav>
     </HeaderContainer>
   )
 }
-
-
