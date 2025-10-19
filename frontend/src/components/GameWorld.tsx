@@ -107,7 +107,7 @@ export default function GameWorld() {
         anchorX="center"
         anchorY="middle"
       >
-        Ethereum Game
+        CoFHE Shop
       </Text>
 
       {/* Interactive elements */}
