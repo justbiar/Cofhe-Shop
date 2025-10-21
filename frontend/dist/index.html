@@ -4,30 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cofhe Shop</title>
-      <script>
-        // Lightweight runtime error probe: display any global errors inside #root
-        window.addEventListener('error', function (e) {
-          try {
-            const root = document.getElementById('root')
-            if (root) root.innerText = 'ERROR: ' + (e && e.message ? e.message : String(e))
-          } catch (err) {
-            /* ignore */
-          }
-        })
-        window.addEventListener('unhandledrejection', function (e) {
-          try {
-            const root = document.getElementById('root')
-            if (root) root.innerText = 'UNHANDLED REJECTION: ' + (e && e.reason && e.reason.message ? e.reason.message : String(e.reason))
-          } catch (err) {
-            /* ignore */
-          }
-        })
-      </script>
-      <script type="module" crossorigin src="/assets/index-37c70b6f.js"></script>
-      <link rel="stylesheet" href="/assets/index-3d1adb1d.css">
+    <script type="module" crossorigin src="/assets/index-bfeb4863.js"></script>
+    <link rel="stylesheet" href="/assets/index-3d1adb1d.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Debug helper: show global errors in the root so blank pages surface the error
+      window.addEventListener('error', function (e) {
+        try {
+          const root = document.getElementById('root')
+          if (root) root.innerText = 'ERROR: ' + (e && e.message ? e.message : String(e))
+        } catch (err) {}
+      })
+      window.addEventListener('unhandledrejection', function (e) {
+        try {
+          const root = document.getElementById('root')
+          if (root) root.innerText = 'UNHANDLED REJECTION: ' + (e && e.reason && e.reason.message ? e.reason.message : String(e.reason))
+        } catch (err) {}
+      })
+    </script>
     
   </body>
 </html>
