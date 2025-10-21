@@ -1,25 +1,33 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cofhe Shop</title>
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        overflow-x: hidden;
-      }
-    </style>
-    <script type="module" crossorigin src="/assets/index-6cc61f4f.js"></script>
-    <link rel="stylesheet" href="/assets/index-73c034cf.css">
+      <script>
+        // Lightweight runtime error probe: display any global errors inside #root
+        window.addEventListener('error', function (e) {
+          try {
+            const root = document.getElementById('root')
+            if (root) root.innerText = 'ERROR: ' + (e && e.message ? e.message : String(e))
+          } catch (err) {
+            /* ignore */
+          }
+        })
+        window.addEventListener('unhandledrejection', function (e) {
+          try {
+            const root = document.getElementById('root')
+            if (root) root.innerText = 'UNHANDLED REJECTION: ' + (e && e.reason && e.reason.message ? e.reason.message : String(e.reason))
+          } catch (err) {
+            /* ignore */
+          }
+        })
+      </script>
+      <script type="module" crossorigin src="/assets/index-37c70b6f.js"></script>
+      <link rel="stylesheet" href="/assets/index-3d1adb1d.css">
   </head>
   <body>
     <div id="root"></div>
     
   </body>
 </html>
-

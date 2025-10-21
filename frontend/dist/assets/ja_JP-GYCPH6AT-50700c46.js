@@ -956,4 +956,3 @@ var u=`{
   }
 }
 `;export{u as default};
-//# sourceMappingURL=ja_JP-GYCPH6AT-50700c46.js.map

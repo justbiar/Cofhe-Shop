@@ -1,12 +1,4 @@
 import React from 'react'
-
-export default function App() {
-  return (
-    <div>
-      <h1>CoFHE Shop (Placeholder)</h1>
-    </div>
-  )
-}
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'

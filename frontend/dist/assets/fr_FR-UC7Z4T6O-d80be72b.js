@@ -956,4 +956,3 @@ var e=`{
   }
 }
 `;export{e as default};
-//# sourceMappingURL=fr_FR-UC7Z4T6O-d80be72b.js.map

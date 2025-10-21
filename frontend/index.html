@@ -7,6 +7,21 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Debug helper: show global errors in the root so blank pages surface the error
+      window.addEventListener('error', function (e) {
+        try {
+          const root = document.getElementById('root')
+          if (root) root.innerText = 'ERROR: ' + (e && e.message ? e.message : String(e))
+        } catch (err) {}
+      })
+      window.addEventListener('unhandledrejection', function (e) {
+        try {
+          const root = document.getElementById('root')
+          if (root) root.innerText = 'UNHANDLED REJECTION: ' + (e && e.reason && e.reason.message ? e.reason.message : String(e.reason))
+        } catch (err) {}
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
